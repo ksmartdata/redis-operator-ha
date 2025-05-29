@@ -7,6 +7,7 @@ import (
 
 	redisfailoverv1 "github.com/spotahome/redis-operator/api/redisfailover/v1"
 	"github.com/spotahome/redis-operator/metrics"
+	"github.com/spotahome/redis-operator/operator/redisfailover/service"
 )
 
 // UpdateRedisesPods if the running version of pods are equal to the statefulset one
@@ -218,7 +219,11 @@ func (r *RedisFailoverHandler) CheckAndHeal(rf *redisfailoverv1.RedisFailover) e
 
 	port := getRedisPort(rf.Spec.Redis.Port)
 	for _, sip := range sentinels {
-		err = r.rfChecker.CheckSentinelMonitor(sip, master, port)
+		if rf.Annotations != nil {
+			err = r.rfChecker.CheckSentinelMonitor(sip, master, port, rf.Annotations[service.AnnotationKeyAdvertisedPort], rf.Namespace)
+		} else {
+			err = r.rfChecker.CheckSentinelMonitor(sip, master, port)
+		}
 		setRedisCheckerMetrics(r.mClient, "sentinel", rf.Namespace, rf.Name, metrics.SENTINEL_WRONG_MASTER, sip, err)
 		if err != nil {
 			r.logger.WithField("redisfailover", rf.ObjectMeta.Name).WithField("namespace", rf.ObjectMeta.Namespace).Warningf("Fixing sentinel not monitoring expected master: %s", err.Error())
@@ -267,7 +272,11 @@ func (r *RedisFailoverHandler) checkAndHealBootstrapMode(rf *redisfailoverv1.Red
 			return err
 		}
 		for _, sip := range sentinels {
-			err = r.rfChecker.CheckSentinelMonitor(sip, bootstrapSettings.Host, bootstrapSettings.Port)
+			if rf.Annotations != nil {
+				err = r.rfChecker.CheckSentinelMonitor(sip, bootstrapSettings.Host, bootstrapSettings.Port, rf.Annotations[service.AnnotationKeyAdvertisedPort], rf.Namespace)
+			} else {
+				err = r.rfChecker.CheckSentinelMonitor(sip, bootstrapSettings.Host, bootstrapSettings.Port)
+			}
 			setRedisCheckerMetrics(r.mClient, "sentinel", rf.Namespace, rf.Name, metrics.SENTINEL_WRONG_MASTER, sip, err)
 			if err != nil {
 				r.logger.WithField("redisfailover", rf.ObjectMeta.Name).WithField("namespace", rf.ObjectMeta.Namespace).Warningf("Fixing sentinel not monitoring expected master: %s", err.Error())
